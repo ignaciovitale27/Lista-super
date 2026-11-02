@@ -142,6 +142,40 @@
   }
   .toast.show { opacity: 1; }
   .hidden { display: none !important; }
+
+  /* ---- Voz ---- */
+  .voicecard {
+    background: var(--green-soft); border: 1px solid var(--green);
+    border-radius: 14px; padding: 12px; margin-top: 6px;
+  }
+  .voicecard p { margin: 0 0 8px; font-size: 16px; }
+  .voicecard .ex { color: var(--muted); font-size: 15px; }
+  .voicecard .qty-row { margin-top: 8px; }
+  .mic {
+    position: fixed; right: 16px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 7;
+    width: 76px; height: 76px; border-radius: 50%; border: none;
+    background: var(--accent); color: #fff; font-size: 34px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  }
+  .mic.on { background: var(--red); animation: pulse 1.2s infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(198,40,40,.55); }
+    100% { box-shadow: 0 0 0 20px rgba(198,40,40,0); }
+  }
+  .vpanel {
+    position: fixed; left: 12px; right: 12px; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 8;
+    max-width: 616px; margin: 0 auto; max-height: 60vh; overflow: auto;
+    background: var(--card); border: 2px solid var(--accent); border-radius: 16px;
+    padding: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.25);
+  }
+  .vstatus { font-weight: 700; font-size: 18px; }
+  .vtext { color: var(--muted); font-style: italic; margin: 6px 0; min-height: 1.3em; }
+  .vres { list-style: none; padding: 0; margin: 8px 0; }
+  .vres li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 18px; }
+  .vbtns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .vbtns .btn { padding: 12px 6px; font-size: 16px; }
+  .item.flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { 0% { background: var(--green-soft); } 100% { background: var(--card); } }
 </style>
 </head>
 <body>
@@ -155,6 +189,15 @@
 <main>
   <!-- PANTALLA 1: revisar la casa -->
   <section id="view-casa">
+    <div class="voicecard">
+      <p><b>🎤 Decilo con la voz:</b> tocá el micrófono verde y hablá.</p>
+      <p class="ex">Ej: “no hay rollo de cocina”, “hay dos paquetes de fideos”, “queda poco café”, “no hay leche ni azúcar”.</p>
+      <p class="ex hidden" id="noMic">Este navegador no permite el micrófono acá: escribí abajo, o usá el 🎤 del teclado para dictar.</p>
+      <div class="qty-row">
+        <input type="text" id="voiceText" placeholder="O escribilo acá…" autocomplete="off">
+        <button class="btn" id="voiceSend">Cargar</button>
+      </div>
+    </div>
     <div id="list"></div>
 
     <div class="add">
@@ -190,6 +233,19 @@
   <button data-view="comprar"><span class="ic">🛒</span>Comprar <span class="badge" id="badge">0</span></button>
   <button data-view="hay"><span class="ic">📦</span>Lo que hay</button>
 </nav>
+
+<button class="mic hidden" id="micBtn" aria-label="Hablar">🎤</button>
+
+<div class="vpanel hidden" id="vpanel" role="status" aria-live="polite">
+  <div class="vstatus" id="vstatus"></div>
+  <div class="vtext" id="vtext"></div>
+  <ul class="vres" id="vres"></ul>
+  <div class="vbtns">
+    <button class="btn" id="vAgain">🎤 Otra</button>
+    <button class="btn sec" id="vUndo">↩ Deshacer</button>
+    <button class="btn sec" id="vClose">✔ Listo</button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -371,6 +427,7 @@
     if (state.view === "comprar") renderComprar();
     if (state.view === "hay") renderHay();
     renderHeader();
+    syncMic();
   }
 
   function shopText() {
@@ -487,6 +544,317 @@
       prompt("Copiá la lista:", text);
     }
   });
+
+  // =====================================================================
+  //  VOZ: entender frases como "no hay rollo de cocina" o "hay 2 kilos de papa"
+  // =====================================================================
+
+  // Otras formas de decir algunos productos
+  var SYN = {
+    "Papel de cocina": ["rollo de cocina", "rollo", "rollos", "papel cocina", "servilletas de papel"],
+    "Papel higiénico": ["papel de baño", "papel del baño", "papel higienico", "higienico"],
+    "Puré de tomate": ["tomate triturado", "salsa de tomate", "pure", "tomate en lata", "pulpa de tomate"],
+    "Gaseosa": ["coca", "coca cola", "sprite", "fanta", "soda"],
+    "Jabón para la ropa": ["jabon en polvo", "jabon liquido", "jabon de la ropa", "jabon para lavar"],
+    "Pasta de dientes": ["pasta dental", "dentifrico", "crema dental"],
+    "Shampoo": ["champu", "champoo", "champo"],
+    "Bolsas de basura": ["bolsas de residuos", "bolsas de consorcio", "bolsitas de basura"],
+    "Lavandina": ["cloro", "lejia"],
+    "Carne picada": ["picada"],
+    "Manteca": ["mantequilla"],
+    "Galletitas": ["galletas"],
+    "Detergente": ["lavavajillas"],
+    "Huevos": ["maple de huevos"]
+  };
+
+  var STOP = { de: 1, del: 1, la: 1, el: 1, los: 1, las: 1, para: 1, con: 1, en: 1, al: 1, lo: 1 };
+  var FILL = { este: 1, eh: 1, em: 1, bueno: 1, mira: 1, che: 1, ah: 1, ya: 1, ahora: 1, entonces: 1, ok: 1, dale: 1, tambien: 1, ademas: 1, despues: 1 };
+  var LEAD = { mas: 1, nada: 1, ningun: 1, ninguna: 1, ninguno: 1, el: 1, la: 1, los: 1, las: 1, de: 1, del: 1, lo: 1, que: 1 };
+  var SEP = { ",": 1, ";": 1, ".": 1, y: 1, e: 1, ni: 1 };
+  var MARKERS = [
+    ["no hay", "no"], ["no tengo", "no"], ["no tenemos", "no"], ["no queda", "no"], ["no quedan", "no"],
+    ["no nos queda", "no"], ["no nos quedan", "no"], ["tampoco hay", "no"], ["tampoco tengo", "no"],
+    ["tampoco queda", "no"], ["tampoco quedan", "no"], ["falta", "no"], ["faltan", "no"],
+    ["se termino", "no"], ["se terminaron", "no"], ["se acabo", "no"], ["se acabaron", "no"],
+    ["hay que comprar", "no"], ["comprar", "no"], ["necesito", "no"], ["necesitamos", "no"],
+    ["anota", "no"], ["anotame", "no"],
+    ["queda poco", "poco"], ["queda poca", "poco"], ["quedan pocos", "poco"], ["quedan pocas", "poco"],
+    ["queda muy poco", "poco"], ["queda muy poca", "poco"], ["hay poco", "poco"], ["hay poca", "poco"],
+    ["hay pocos", "poco"], ["hay pocas", "poco"], ["hay muy poco", "poco"], ["hay muy poca", "poco"],
+    ["casi no hay", "poco"], ["casi no queda", "poco"], ["casi no quedan", "poco"],
+    ["se esta terminando", "poco"], ["se esta acabando", "poco"],
+    ["hay", "hay"], ["tengo", "hay"], ["tenemos", "hay"], ["queda", "hay"], ["quedan", "hay"]
+  ].map(function (m) { return { w: m[0].split(" "), t: m[1] }; })
+   .sort(function (a, b) { return b.w.length - a.w.length; });
+
+  function norm(s) {
+    return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9,;.#]/g, "");
+  }
+  // "tomates" / "tomate" -> "tomat", "papeles" -> "papel": así singular y plural coinciden
+  function stem(w) {
+    w = w.replace(/(es|s)$/, "");
+    if (w.length > 3) w = w.replace(/e$/, "");
+    return w;
+  }
+  function tokens(text) {
+    return text.toLowerCase()
+      .replace(/(\d)[.,](\d)/g, "$1#$2")          // 1,5 litros
+      .replace(/[¿?¡!:"()]/g, " ")
+      .replace(/([,;.])/g, " $1 ")
+      .split(/\s+/).filter(Boolean)
+      .map(function (o) { return { o: o.replace("#", ","), n: norm(o) }; })
+      .filter(function (t) { return t.n && !FILL[t.n]; });
+  }
+  function stemsOf(name) {
+    return name.split(/\s+/).map(norm).filter(function (w) { return w && !STOP[w]; }).map(stem);
+  }
+  function variants(it) {
+    return [stemsOf(it.name)].concat((SYN[it.name] || []).map(stemsOf));
+  }
+
+  // Busca uno o varios productos dentro de un pedazo de frase
+  function matchGroup(group) {
+    var st = group.map(function (t) { return stem(t.n); });
+    var used = group.map(function () { return false; });
+    var found = [];
+
+    function tryVariant(v) {
+      var idx = [];
+      for (var a = 0; a < v.length; a++) {
+        var hit = -1;
+        for (var j = 0; j < st.length; j++) {
+          if (!used[j] && idx.indexOf(j) < 0 && st[j] === v[a]) { hit = j; break; }
+        }
+        if (hit < 0) return null;
+        idx.push(hit);
+      }
+      return idx;
+    }
+
+    // 1) coincidencias completas (prefiere el nombre más largo: "dulce de leche" antes que "leche")
+    for (;;) {
+      var best = null;
+      state.items.forEach(function (it) {
+        if (found.indexOf(it) >= 0) return;
+        variants(it).forEach(function (v) {
+          if (!v.length) return;
+          var idx = tryVariant(v);
+          if (idx && (!best || v.length > best.n)) best = { it: it, idx: idx, n: v.length };
+        });
+      });
+      if (!best) break;
+      best.idx.forEach(function (j) { used[j] = true; });
+      found.push(best.it);
+    }
+
+    // 2) si no hubo nada, coincidencia parcial con el nombre ("carne" -> "Carne picada")
+    if (!found.length) {
+      var bp = null;
+      state.items.forEach(function (it) {
+        [stemsOf(it.name)].forEach(function (v) {
+          var idx = [];
+          v.forEach(function (s) {
+            if (UNIT[s]) return;
+            for (var j = 0; j < st.length; j++) if (st[j] === s && idx.indexOf(j) < 0) { idx.push(j); break; }
+          });
+          var ratio = v.length ? idx.length / v.length : 0;
+          if (idx.length && ratio >= 0.5 && (!bp || ratio > bp.r)) bp = { it: it, idx: idx, r: ratio };
+        });
+      });
+      if (bp) { bp.idx.forEach(function (j) { used[j] = true; }); found.push(bp.it); }
+    }
+
+    // "pan rallado": si justo después del producto viene otra palabra que no es cantidad,
+    // en realidad es otro producto (se agrega como nuevo)
+    if (found.length === 1) {
+      var last = used.lastIndexOf(true), nx = group[last + 1];
+      if (nx && !STOP[nx.n] && !QTYWORD.test(nx.n) && !UNIT[stem(nx.n)]) return { items: [], rest: "" };
+    }
+
+    var rest = group.filter(function (t, j) { return !used[j]; });
+    while (rest.length && STOP[rest[0].n]) rest.shift();
+    while (rest.length && STOP[rest[rest.length - 1].n]) rest.pop();
+    return { items: found, rest: rest.map(function (t) { return t.o; }).join(" ") };
+  }
+
+  var UNIT = {};
+  ["paquete", "kilo", "kg", "gramo", "litro", "lata", "botella", "caja", "bolsa", "frasco", "unidad",
+   "docena", "maple", "sachet", "pote", "sobre", "taza", "cuarto", "poco", "rollo", "atado", "planta"]
+    .forEach(function (u) { UNIT[stem(u)] = 1; });
+  var QTYWORD = /^(\d+([.,]\d+)?|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|medio|media|mucho|mucha|muchos|muchas|varios|varias|algo|un poco)$/;
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // Devuelve una lista de acciones: {type: "no"|"hay"|"poco", item | newName, qty}
+  function parseVoz(text) {
+    var tk = tokens(text), segs = [], cur = null, pre = [];
+    for (var i = 0; i < tk.length;) {
+      var m = null;
+      for (var k = 0; k < MARKERS.length && !m; k++) {
+        var w = MARKERS[k].w, ok = true;
+        for (var j = 0; j < w.length; j++) if (!tk[i + j] || tk[i + j].n !== w[j]) { ok = false; break; }
+        if (ok) m = MARKERS[k];
+      }
+      if (m) { cur = { t: m.t, toks: [] }; segs.push(cur); i += m.w.length; }
+      else { (cur ? cur.toks : pre).push(tk[i]); i++; }
+    }
+    // "rollo de cocina no hay" (el producto antes de la frase)
+    if (segs.length && !segs[0].toks.some(function (t) { return !SEP[t.n]; })) segs[0].toks = pre;
+
+    var actions = [], unknown = [];
+    segs.forEach(function (seg) {
+      var groups = [[]];
+      seg.toks.forEach(function (t) { if (SEP[t.n]) groups.push([]); else groups[groups.length - 1].push(t); });
+      groups.forEach(function (g) {
+        while (g.length && LEAD[g[0].n]) g.shift();
+        if (!g.length) return;
+        var r = matchGroup(g);
+        if (r.items.length) {
+          r.items.forEach(function (it) {
+            actions.push({ type: seg.t, item: it, qty: r.items.length === 1 ? r.rest : "" });
+          });
+        } else {
+          // producto nuevo: separar cantidad si dice "2 paquetes de ..."
+          var words = g.map(function (t) { return t.o; });
+          var qty = "", deAt = g.map(function (t) { return t.n; }).indexOf("de");
+          if (seg.t !== "no" && deAt > 0 && deAt < g.length - 1 && QTYWORD.test(g[0].n)) {
+            qty = words.slice(0, deAt).join(" ");
+            words = words.slice(deAt + 1);
+          }
+          var name = cap(words.join(" "));
+          if (name.length < 2) { unknown.push(words.join(" ")); return; }
+          actions.push({ type: seg.t, newName: name, qty: qty });
+        }
+      });
+    });
+    if (!segs.length && text.trim()) unknown.push(text.trim());
+    return { actions: actions, unknown: unknown };
+  }
+
+  var undoSnap = null;
+
+  function applyVoz(text) {
+    var res = parseVoz(text);
+    var lines = [], touched = [];
+    if (res.actions.length) undoSnap = JSON.stringify(state.items);
+    res.actions.forEach(function (a) {
+      var it = a.item, isNew = false;
+      if (!it) {
+        it = { id: uid(), name: a.newName, cat: "Otros", status: null, qty: "", poco: false, done: false };
+        state.items.push(it);
+        isNew = true;
+      }
+      it.done = false;
+      if (a.type === "no") {
+        it.status = "no"; it.poco = false; it.qty = "";
+        lines.push("✘ No hay: <b>" + esc(it.name) + "</b>");
+      } else if (a.type === "poco") {
+        it.status = "hay"; it.poco = true; it.qty = a.qty || "poco";
+        lines.push("⚠️ Queda poco: <b>" + esc(it.name) + "</b> (va a la lista)");
+      } else {
+        it.status = "hay";
+        if (a.qty) { it.qty = a.qty; it.poco = /\bpoc[oa]s?\b/i.test(a.qty); }
+        lines.push("✔ Hay: <b>" + esc(it.name) + "</b>" + (it.qty ? " — " + esc(it.qty) : ""));
+      }
+      if (isNew) lines[lines.length - 1] += ' <span class="note">(nuevo)</span>';
+      touched.push(it.id);
+    });
+    res.unknown.forEach(function (u) {
+      lines.push("🤔 No entendí: “" + esc(u) + "”. Probá con “hay …” o “no hay …”.");
+    });
+    save(); render();
+    touched.forEach(function (id) {
+      var el = document.querySelector('.item[data-id="' + id + '"]');
+      if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    });
+    showPanel(res.actions.length ? "Listo, anoté:" : "No entendí 😕", "“" + text + "”", lines);
+    document.getElementById("vUndo").disabled = !res.actions.length;
+  }
+
+  // ---------- panel y micrófono ----------
+  var vpanel = document.getElementById("vpanel");
+  var micBtn = document.getElementById("micBtn");
+  var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micOK = !!Rec && window.isSecureContext !== false;
+  var rec = null, listening = false, gotFinal = false;
+
+  function showPanel(status, text, lines) {
+    document.getElementById("vstatus").textContent = status;
+    document.getElementById("vtext").textContent = text || "";
+    document.getElementById("vres").innerHTML = (lines || []).map(function (l) { return "<li>" + l + "</li>"; }).join("");
+    vpanel.classList.remove("hidden");
+    syncMic();
+  }
+  function hidePanel() { vpanel.classList.add("hidden"); syncMic(); }
+
+  function syncMic() {
+    if (!micBtn) return;
+    micBtn.classList.toggle("hidden", !micOK || state.view !== "casa" || !vpanel.classList.contains("hidden"));
+    micBtn.classList.toggle("on", listening);
+    var again = document.getElementById("vAgain");
+    if (again) again.classList.toggle("hidden", !micOK);
+  }
+
+  function listen() {
+    if (!micOK) return;
+    if (listening && rec) { rec.stop(); return; }
+    rec = new Rec();
+    rec.lang = "es-AR";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    gotFinal = false;
+    rec.onstart = function () {
+      listening = true; syncMic();
+      showPanel("🎤 Te escucho… hablá", "", []);
+      document.getElementById("vUndo").disabled = true;
+    };
+    rec.onresult = function (e) {
+      var txt = "";
+      for (var i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      document.getElementById("vtext").textContent = "“" + txt + "”";
+      if (e.results[e.results.length - 1].isFinal) { gotFinal = true; applyVoz(txt); }
+    };
+    rec.onerror = function (e) {
+      gotFinal = true;
+      var msg = e.error === "not-allowed" || e.error === "service-not-allowed"
+        ? "Hay que dar permiso al micrófono (tocá el candadito arriba en el navegador)."
+        : e.error === "no-speech" ? "No escuché nada. Tocá 🎤 Otra y probá de nuevo."
+        : "Hubo un problema con el micrófono (" + e.error + ").";
+      showPanel("😕 " + msg, "", []);
+      document.getElementById("vUndo").disabled = true;
+    };
+    rec.onend = function () {
+      listening = false; syncMic();
+      if (!gotFinal) { showPanel("No escuché nada", "Tocá 🎤 Otra y probá de nuevo.", []); document.getElementById("vUndo").disabled = true; }
+    };
+    try { rec.start(); } catch (err) { listening = false; syncMic(); }
+  }
+
+  if (!micOK) document.getElementById("noMic").classList.remove("hidden");
+  micBtn.addEventListener("click", listen);
+  document.getElementById("vAgain").addEventListener("click", listen);
+  document.getElementById("vClose").addEventListener("click", function () { if (listening && rec) rec.abort(); hidePanel(); });
+  document.getElementById("vUndo").addEventListener("click", function () {
+    if (!undoSnap) return;
+    state.items = JSON.parse(undoSnap);
+    undoSnap = null;
+    save(); render();
+    showPanel("↩ Deshecho", "", []);
+    document.getElementById("vUndo").disabled = true;
+  });
+  function sendText() {
+    var inp = document.getElementById("voiceText");
+    var t = inp.value.trim();
+    if (!t) { inp.focus(); return; }
+    inp.value = "";
+    inp.blur();
+    applyVoz(t);
+  }
+  document.getElementById("voiceSend").addEventListener("click", sendText);
+  document.getElementById("voiceText").addEventListener("keydown", function (e) { if (e.key === "Enter") sendText(); });
+
+  window.__parseVoz = parseVoz; // para pruebas
 
   render();
 })();
