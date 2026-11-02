@@ -20,11 +20,22 @@ Al terminar, **"Empezar revisión nueva"** borra las marcas pero deja los produc
 
 Todo se guarda solo en el celular (no necesita internet ni cuenta).
 
-## Cómo abrirla
+## Instalarla en el celular (como una app)
 
-> El micrófono solo funciona si la página se abre desde un link `https://` (por ejemplo GitHub Pages),
-> no abriendo el archivo directo. Anda en Chrome (Android) y Safari (iPhone).
+La app es instalable (PWA): queda con su ícono en la pantalla de inicio, se abre a pantalla completa
+y funciona sin internet. No hace falta Play Store ni App Store.
 
+1. Publicar la carpeta en un link `https://` (ver abajo).
+2. Abrir ese link en el celular:
+   - **Android (Chrome):** aparece el cartel **"Instalar"** arriba de todo (o menú ⋮ → *Instalar app*).
+   - **iPhone (Safari):** botón **Compartir** ⬆️ → **"Agregar a inicio"**.
+3. Listo: se abre desde el ícono 🛒 "Súper".
 
-Abrir `index.html` en el navegador del celular. Para tenerla con un link, se puede activar GitHub Pages
-(Settings → Pages → Branch) y después "Agregar a pantalla de inicio" desde el navegador.
+> El micrófono solo funciona desde un link `https://`, no abriendo el archivo directo.
+
+### Dónde publicarla (gratis)
+
+- **Netlify Drop** (lo más fácil): entrar a https://app.netlify.com/drop y arrastrar la carpeta con
+  estos archivos. Te da un link al instante.
+- **GitHub Pages**: Settings → Pages → elegir la rama. En repos privados requiere GitHub Pro;
+  si el repo es público es gratis.
