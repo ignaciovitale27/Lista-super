@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2e7d32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Lista del Súper</title>
+<style>
+  :root {
+    --bg: #f6f7f4;
+    --card: #ffffff;
+    --text: #1d211c;
+    --muted: #646b62;
+    --line: #e2e5df;
+    --green: #2e7d32;
+    --green-soft: #e3f1e3;
+    --red: #c62828;
+    --red-soft: #fbe5e5;
+    --accent: #2e7d32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141713;
+      --card: #1e221d;
+      --text: #eef1ec;
+      --muted: #a1a99e;
+      --line: #30362e;
+      --green: #66bb6a;
+      --green-soft: #213323;
+      --red: #ef5350;
+      --red-soft: #3a2222;
+      --accent: #66bb6a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 18px;
+    line-height: 1.35;
+    padding-bottom: 96px;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .progress { color: var(--muted); font-size: 15px; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--green); width: 0; transition: width .2s; }
+  main { padding: 12px 16px; max-width: 640px; margin: 0 auto; }
+  h2 {
+    font-size: 15px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin: 22px 4px 8px;
+  }
+  .item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .item.hay { border-color: var(--green); }
+  .item.nohay { border-color: var(--red); }
+  .top { display: flex; align-items: center; gap: 8px; }
+  .name { flex: 1; font-weight: 600; font-size: 19px; word-break: break-word; }
+  .del {
+    background: none; border: none; color: var(--muted);
+    font-size: 22px; padding: 4px 8px; cursor: pointer;
+  }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .choices button {
+    font-size: 18px; font-weight: 700;
+    padding: 14px 8px; border-radius: 12px;
+    border: 2px solid var(--line); background: var(--card); color: var(--text);
+    cursor: pointer;
+  }
+  .choices .b-hay[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #fff; }
+  .choices .b-no[aria-pressed="true"]  { background: var(--red);   border-color: var(--red);   color: #fff; }
+  .qty { margin-top: 10px; display: none; }
+  .item.hay .qty { display: block; }
+  .qty label { display: block; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+  .qty-row { display: flex; gap: 8px; }
+  input[type="text"], select {
+    width: 100%; font-size: 18px; padding: 12px;
+    border: 2px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text);
+  }
+  input[type="text"]:focus, select:focus { outline: none; border-color: var(--accent); }
+  .poco { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 16px; }
+  .poco input { width: 24px; height: 24px; }
+  .add {
+    background: var(--card); border: 1px dashed var(--muted);
+    border-radius: 14px; padding: 12px; margin-top: 24px;
+  }
+  .add .qty-row { margin-top: 8px; }
+  .btn {
+    font-size: 18px; font-weight: 700; padding: 12px 16px;
+    border-radius: 12px; border: none; cursor: pointer;
+    background: var(--accent); color: #fff; white-space: nowrap;
+  }
+  .btn.sec { background: var(--card); color: var(--text); border: 2px solid var(--line); }
+  .btn.full { width: 100%; margin-top: 10px; }
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    background: var(--card); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  nav button {
+    background: none; border: none; color: var(--muted);
+    font-size: 15px; font-weight: 600; padding: 10px 4px 12px; cursor: pointer;
+  }
+  nav button .ic { display: block; font-size: 24px; }
+  nav button[aria-current="true"] { color: var(--accent); }
+  .badge {
+    display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 11px;
+    background: var(--red); color: #fff; font-size: 13px; margin-left: 4px;
+  }
+  .shop li {
+    list-style: none; display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px; margin-bottom: 8px; font-size: 19px;
+  }
+  .shop ul { padding: 0; margin: 0; }
+  .shop input { width: 28px; height: 28px; flex: none; }
+  .shop li.done span { text-decoration: line-through; color: var(--muted); }
+  .note { color: var(--muted); font-size: 15px; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+  .inv li { list-style: none; padding: 10px 4px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+  .inv ul { padding: 0; margin: 0; }
+  .inv .q { color: var(--green); font-weight: 600; text-align: right; }
+  .toast {
+    position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 20px;
+    font-size: 16px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">🏠 ¿Qué hay en casa?</h1>
+  <div class="progress" id="progress"></div>
+  <div class="bar"><div id="barfill"></div></div>
+</header>
+
+<main>
+  <!-- PANTALLA 1: revisar la casa -->
+  <section id="view-casa">
+    <div id="list"></div>
+
+    <div class="add">
+      <strong>➕ Agregar otra cosa</strong>
+      <div class="qty-row">
+        <input type="text" id="newName" placeholder="Ej: Yerba, pan rallado…" autocomplete="off">
+      </div>
+      <div class="qty-row">
+        <select id="newCat"></select>
+        <button class="btn" id="addBtn">Agregar</button>
+      </div>
+    </div>
+
+    <button class="btn sec full" id="resetBtn">🔄 Empezar revisión nueva</button>
+    <p class="note">“Empezar revisión nueva” borra lo que marcaste (hay / no hay) pero deja los productos.</p>
+  </section>
+
+  <!-- PANTALLA 2: lista de compras -->
+  <section id="view-comprar" class="hidden shop">
+    <div id="shopList"></div>
+    <button class="btn full" id="shareBtn">📲 Mandar por WhatsApp</button>
+    <button class="btn sec full" id="copyBtn">📋 Copiar la lista</button>
+  </section>
+
+  <!-- PANTALLA 3: lo que hay -->
+  <section id="view-hay" class="hidden inv">
+    <div id="invList"></div>
+  </section>
+</main>
+
+<nav>
+  <button data-view="casa" aria-current="true"><span class="ic">🏠</span>Revisar casa</button>
+  <button data-view="comprar"><span class="ic">🛒</span>Comprar <span class="badge" id="badge">0</span></button>
+  <button data-view="hay"><span class="ic">📦</span>Lo que hay</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY = "lista-super-v1";
+  var CATS = ["Almacén", "Lácteos y fiambres", "Frutas y verduras", "Carnes", "Bebidas", "Limpieza", "Higiene", "Otros"];
+  var DEFAULTS = {
+    "Almacén": ["Yerba", "Azúcar", "Café", "Té", "Fideos", "Arroz", "Harina", "Aceite", "Sal", "Galletitas", "Pan", "Puré de tomate", "Mayonesa", "Atún"],
+    "Lácteos y fiambres": ["Leche", "Manteca", "Queso", "Yogur", "Huevos", "Jamón", "Dulce de leche", "Crema"],
+    "Frutas y verduras": ["Papa", "Cebolla", "Tomate", "Lechuga", "Zanahoria", "Banana", "Manzana", "Limón"],
+    "Carnes": ["Carne picada", "Pollo", "Milanesas"],
+    "Bebidas": ["Agua", "Gaseosa", "Jugo", "Vino"],
+    "Limpieza": ["Detergente", "Lavandina", "Jabón para la ropa", "Suavizante", "Esponja", "Bolsas de basura", "Papel de cocina"],
+    "Higiene": ["Papel higiénico", "Jabón", "Shampoo", "Pasta de dientes", "Desodorante"],
+    "Otros": []
+  };
+
+  // estado: items = [{id, name, cat, status: null|"hay"|"no", qty: "", poco: false, done: false}]
+  var state = load();
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && Array.isArray(s.items)) return s;
+      }
+    } catch (e) {}
+    var items = [];
+    CATS.forEach(function (c) {
+      DEFAULTS[c].forEach(function (n) {
+        items.push({ id: uid(), name: n, cat: c, status: null, qty: "", poco: false, done: false });
+      });
+    });
+    return { items: items, view: "casa" };
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function byId(id) {
+    for (var i = 0; i < state.items.length; i++) if (state.items[i].id === id) return state.items[i];
+    return null;
+  }
+
+  function toBuy() {
+    return state.items.filter(function (it) { return it.status === "no" || (it.status === "hay" && it.poco); });
+  }
+
+  function grouped(items) {
+    var out = [];
+    CATS.forEach(function (c) {
+      var list = items.filter(function (it) { return it.cat === c; });
+      if (list.length) out.push({ cat: c, items: list });
+    });
+    return out;
+  }
+
+  // ---------- Pantalla: revisar casa ----------
+  function renderCasa() {
+    var html = "";
+    grouped(state.items).forEach(function (g) {
+      html += "<h2>" + esc(g.cat) + "</h2>";
+      g.items.forEach(function (it) {
+        var cls = it.status === "hay" ? "hay" : it.status === "no" ? "nohay" : "";
+        html +=
+          '<div class="item ' + cls + '" data-id="' + it.id + '">' +
+            '<div class="top"><div class="name">' + esc(it.name) + '</div>' +
+            '<button class="del" data-act="del" aria-label="Borrar ' + esc(it.name) + '">✕</button></div>' +
+            '<div class="choices">' +
+              '<button class="b-hay" data-act="hay" aria-pressed="' + (it.status === "hay") + '">✔ Hay</button>' +
+              '<button class="b-no" data-act="no" aria-pressed="' + (it.status === "no") + '">✘ No hay</button>' +
+            '</div>' +
+            '<div class="qty">' +
+              '<label for="q-' + it.id + '">¿Cuánto hay?</label>' +
+              '<input type="text" id="q-' + it.id + '" data-act="qty" value="' + esc(it.qty) + '" placeholder="Ej: 2 paquetes, medio kilo, 1 botella" autocomplete="off">' +
+              '<label class="poco"><input type="checkbox" data-act="poco"' + (it.poco ? " checked" : "") + '> Queda poco, comprar igual</label>' +
+            '</div>' +
+          '</div>';
+      });
+    });
+    document.getElementById("list").innerHTML = html;
+  }
+
+  // Actualiza una sola tarjeta sin redibujar todo (así no se pierde el foco ni el scroll)
+  function updateCard(it) {
+    var el = document.querySelector('.item[data-id="' + it.id + '"]');
+    if (!el) return;
+    el.classList.toggle("hay", it.status === "hay");
+    el.classList.toggle("nohay", it.status === "no");
+    el.querySelector(".b-hay").setAttribute("aria-pressed", it.status === "hay");
+    el.querySelector(".b-no").setAttribute("aria-pressed", it.status === "no");
+  }
+
+  function renderHeader() {
+    var total = state.items.length;
+    var done = state.items.filter(function (it) { return it.status; }).length;
+    var n = toBuy().length;
+    document.getElementById("badge").textContent = n;
+    var title = document.getElementById("title");
+    var prog = document.getElementById("progress");
+    if (state.view === "casa") {
+      title.textContent = "🏠 ¿Qué hay en casa?";
+      prog.textContent = "Revisaste " + done + " de " + total + " · Para comprar: " + n;
+    } else if (state.view === "comprar") {
+      var got = toBuy().filter(function (it) { return it.done; }).length;
+      title.textContent = "🛒 Lista para comprar";
+      prog.textContent = n ? "Compraste " + got + " de " + n : "Todavía no hay nada para comprar";
+      done = got; total = n || 1;
+    } else {
+      title.textContent = "📦 Lo que hay en casa";
+      var h = state.items.filter(function (it) { return it.status === "hay"; }).length;
+      prog.textContent = h + " productos en casa";
+      done = h; total = state.items.length || 1;
+    }
+    document.getElementById("barfill").style.width = Math.round(done / Math.max(total, 1) * 100) + "%";
+  }
+
+  // ---------- Pantalla: comprar ----------
+  function renderComprar() {
+    var items = toBuy();
+    var box = document.getElementById("shopList");
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">Cuando marques algo como <b>“No hay”</b> en “Revisar casa”, aparece acá.</div>';
+      return;
+    }
+    var html = "";
+    grouped(items).forEach(function (g) {
+      html += "<h2>" + esc(g.cat) + "</h2><ul>";
+      g.items.forEach(function (it) {
+        var extra = it.status === "hay" ? ' <span class="note">(queda ' + esc(it.qty || "poco") + ')</span>' : "";
+        html += '<li class="' + (it.done ? "done" : "") + '"><input type="checkbox" data-id="' + it.id + '"' +
+          (it.done ? " checked" : "") + ' aria-label="Comprado ' + esc(it.name) + '"><span>' + esc(it.name) + extra + "</span></li>";
+      });
+      html += "</ul>";
+    });
+    box.innerHTML = html;
+  }
+
+  // ---------- Pantalla: lo que hay ----------
+  function renderHay() {
+    var items = state.items.filter(function (it) { return it.status === "hay"; });
+    var box = document.getElementById("invList");
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">Todavía no marcaste nada como <b>“Hay”</b>.</div>';
+      return;
+    }
+    var html = "";
+    grouped(items).forEach(function (g) {
+      html += "<h2>" + esc(g.cat) + "</h2><ul>";
+      g.items.forEach(function (it) {
+        html += "<li><span>" + esc(it.name) + '</span><span class="q">' + esc(it.qty || "—") + (it.poco ? " ⚠️" : "") + "</span></li>";
+      });
+      html += "</ul>";
+    });
+    box.innerHTML = html;
+  }
+
+  function render() {
+    ["casa", "comprar", "hay"].forEach(function (v) {
+      document.getElementById("view-" + v).classList.toggle("hidden", state.view !== v);
+    });
+    document.querySelectorAll("nav button").forEach(function (b) {
+      b.setAttribute("aria-current", b.getAttribute("data-view") === state.view);
+    });
+    if (state.view === "casa") renderCasa();
+    if (state.view === "comprar") renderComprar();
+    if (state.view === "hay") renderHay();
+    renderHeader();
+  }
+
+  function shopText() {
+    var items = toBuy();
+    var lines = ["🛒 *Lista del súper*"];
+    grouped(items).forEach(function (g) {
+      lines.push("");
+      lines.push("*" + g.cat + "*");
+      g.items.forEach(function (it) { lines.push("• " + it.name); });
+    });
+    return lines.join("\n");
+  }
+
+  var toastT;
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  // ---------- Eventos ----------
+  document.getElementById("list").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-act]");
+    if (!btn) return;
+    var card = btn.closest(".item");
+    var it = byId(card.getAttribute("data-id"));
+    var act = btn.getAttribute("data-act");
+    if (act === "hay" || act === "no") {
+      it.status = it.status === act ? null : act;   // tocar de nuevo desmarca
+      if (it.status !== "hay") it.poco = false;
+      save(); updateCard(it); renderHeader();
+      if (it.status === "hay") {
+        var q = card.querySelector('input[data-act="qty"]');
+        if (q && !it.qty) q.focus();
+      }
+    } else if (act === "del") {
+      if (confirm("¿Borrar “" + it.name + "” de la lista?")) {
+        state.items = state.items.filter(function (x) { return x !== it; });
+        save(); render();
+      }
+    }
+  });
+
+  document.getElementById("list").addEventListener("input", function (e) {
+    if (e.target.getAttribute("data-act") !== "qty") return;
+    var it = byId(e.target.closest(".item").getAttribute("data-id"));
+    it.qty = e.target.value;
+    save();
+  });
+
+  document.getElementById("list").addEventListener("change", function (e) {
+    if (e.target.getAttribute("data-act") !== "poco") return;
+    var it = byId(e.target.closest(".item").getAttribute("data-id"));
+    it.poco = e.target.checked;
+    save(); renderHeader();
+  });
+
+  document.getElementById("shopList").addEventListener("change", function (e) {
+    var id = e.target.getAttribute("data-id");
+    if (!id) return;
+    var it = byId(id);
+    it.done = e.target.checked;
+    e.target.closest("li").classList.toggle("done", it.done);
+    save(); renderHeader();
+  });
+
+  var sel = document.getElementById("newCat");
+  sel.innerHTML = CATS.map(function (c) { return "<option>" + esc(c) + "</option>"; }).join("");
+  sel.value = "Otros";
+
+  function addItem() {
+    var inp = document.getElementById("newName");
+    var name = inp.value.trim();
+    if (!name) { inp.focus(); return; }
+    var exists = state.items.some(function (it) { return it.name.toLowerCase() === name.toLowerCase(); });
+    if (exists) { toast("“" + name + "” ya está en la lista"); return; }
+    var it = { id: uid(), name: name, cat: sel.value, status: null, qty: "", poco: false, done: false };
+    state.items.push(it);
+    inp.value = "";
+    save(); render();
+    var el = document.querySelector('.item[data-id="' + it.id + '"]');
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    toast("Agregado: " + name);
+  }
+  document.getElementById("addBtn").addEventListener("click", addItem);
+  document.getElementById("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") addItem(); });
+
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("¿Empezar una revisión nueva? Se borran las marcas de Hay / No hay.")) return;
+    state.items.forEach(function (it) { it.status = null; it.qty = ""; it.poco = false; it.done = false; });
+    save(); render(); window.scrollTo(0, 0);
+  });
+
+  document.querySelectorAll("nav button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.view = b.getAttribute("data-view");
+      save(); render(); window.scrollTo(0, 0);
+    });
+  });
+
+  document.getElementById("shareBtn").addEventListener("click", function () {
+    if (!toBuy().length) { toast("La lista está vacía"); return; }
+    window.open("https://wa.me/?text=" + encodeURIComponent(shopText()), "_blank");
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    if (!toBuy().length) { toast("La lista está vacía"); return; }
+    var text = shopText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("Lista copiada ✔"); }, function () { prompt("Copiá la lista:", text); });
+    } else {
+      prompt("Copiá la lista:", text);
+    }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
